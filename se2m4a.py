@@ -37,7 +37,7 @@ def main():
         if rate not in magic_rates:
             sys.exit(input_file + " is " + str(rate) + " Hz. Re-sample it to one of " + str(magic_rates) + " Hz pls.")
         asm.write("// Converted from " + input_file + " by se2m4a.\n\n")
-        asm.write("\t.include \"m4a_def.s\"\n")
+        asm.write("\t.include \"m4a_def.s\"\n\n")
         asm.write("\t.section .rodata\n")
         asm.write("\t.global " + symbol)
         asm.write("\n\t.align 2\n")
@@ -54,7 +54,12 @@ def main():
                 asm.write("\n\t.byte " + ', '.join(['%d' % b for b in raw]))
         else:
             asm.write("\n\t.string \"" + raw + "\"")
-        asm.write("\n")
+        asm.write("\n\t.align 2\n")
+        symbol_tone = symbol + "_tone"
+        asm.write(symbol_tone + ":\n")
+        asm.write("\t.byte 0, Cn3, 0, 0\n")
+        asm.write("\t.word " + symbol_wave)
+        asm.write("\n\t.byte 255, 0, 255, 0 // ASDR envelope")
 
 
 if __name__ == "__main__":
