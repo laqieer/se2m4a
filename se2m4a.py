@@ -10,6 +10,7 @@ import os
 import sys
 import wave
 import aifc
+import math
 import numpy as np
 
 magic_rates = (5734, 7884, 10512, 13379, 15768, 18157, 21024, 26758, 31536, 36314, 40137, 42048)
@@ -25,7 +26,6 @@ def compress_blk(uncompressed_data):
         if index == 0 :
             compressed_data.append(0)
             continue
-        print(uncompressed_data[index])
         diff_value.append(np.int(uncompressed_data[index]) - np.int(decompressed_data[index - 1]))
         quantized_value = quantized_array[diff_value[index] + 255]
         if index % 2 == 0:
@@ -33,11 +33,11 @@ def compress_blk(uncompressed_data):
         else:
             compressed_data[-1] |= quantized_value & 0xF
         decompressed_data.append(decompressed_data[index - 1] + quantized_table[quantized_value])
-        print("%d: %d %d %d %d" % (index, uncompressed_data[index], diff_value[index], quantized_value, compressed_data[-1]))
+        #print("%d: %d %d %d %d" % (index, uncompressed_data[index], diff_value[index], quantized_value, compressed_data[-1]))
     return compressed_data, decompressed_data
 
 def compress(uncompressed_data):
-    print("index: value delta quantized compressed")
+    #print("index: value delta quantized compressed")
     compressed_data = []
     decompressed_data = []
     blks = np.split(uncompressed_data, len(uncompressed_data) / blk_size)
@@ -46,6 +46,15 @@ def compress(uncompressed_data):
         compressed_data += compressed_blk
         decompressed_data += decompressed_blk
     return compressed_data, decompressed_data
+
+def calculate_STNR(uncompressed_data, decompressed_data) :
+    sum_son = np.int64(0)
+    sum_mum = np.int64(0)
+    for i in range(len(decompressed_data)) :
+        sum_son += int(decompressed_data[i]) * int(decompressed_data[i])
+        sub = decompressed_data[i] - uncompressed_data[i]
+        sum_mum += sub * sub
+    return 10 * math.log10(float(sum_son) / float(sum_mum))
 
 def main():
     if len(sys.argv) < 2 or len(sys.argv) > 4:
@@ -88,13 +97,14 @@ def main():
         raw = audio.readframes(frames)
         if enable_compress:
             if audio_ext in ('.wav', '.WAV'):
-                #uncompressed_data = np.frombuffer(raw, dtype = np.ubyte).astype(np.byte) + 0x80
                 uncompressed_data = (np.frombuffer(raw, dtype = np.ubyte) - 0x80).astype(np.byte)
             else:
                 uncompressed_data = np.frombuffer(raw, dtype = np.byte)
             if frames % blk_size > 0:
                 uncompressed_data = np.append(uncompressed_data, [0] * (blk_size - frames % blk_size))
             compressed_data, decompressed_data = compress(uncompressed_data)
+            STNR = calculate_STNR(uncompressed_data, decompressed_data)
+            asm.write("\n\t// STNR: %.2f dB" % STNR)
             asm.write("\n\t.byte " + ', '.join(['%d' % b for b in compressed_data]))
         else:
             if type(raw) == bytes:
