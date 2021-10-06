@@ -26,7 +26,7 @@ def compress_blk(uncompressed_data):
             compressed_data.append(0)
             continue
         print(uncompressed_data[index])
-        diff_value.append(np.int(uncompressed_data[index]) - np.int(uncompressed_data[index - 1]))
+        diff_value.append(np.int(uncompressed_data[index]) - np.int(decompressed_data[index - 1]))
         quantized_value = quantized_array[diff_value[index] + 255]
         if index % 2 == 0:
             compressed_data.append((quantized_value & 0xF) << 4)
