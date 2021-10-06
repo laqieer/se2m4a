@@ -47,7 +47,7 @@ def compress(uncompressed_data):
         decompressed_data += decompressed_blk
     return compressed_data, decompressed_data
 
-def calculate_STNR(uncompressed_data, decompressed_data) :
+def calculate_SNR(uncompressed_data, decompressed_data) :
     sum_son = np.int64(0)
     sum_mum = np.int64(0)
     for i in range(len(decompressed_data)) :
@@ -103,8 +103,8 @@ def main():
             if frames % blk_size > 0:
                 uncompressed_data = np.append(uncompressed_data, [0] * (blk_size - frames % blk_size))
             compressed_data, decompressed_data = compress(uncompressed_data)
-            STNR = calculate_STNR(uncompressed_data, decompressed_data)
-            asm.write("\n\t// STNR: %.2f dB" % STNR)
+            SNR = calculate_SNR(uncompressed_data, decompressed_data)
+            asm.write("\n\t// SNR: %.2f dB" % SNR)
             asm.write("\n\t.byte " + ', '.join(['%d' % b for b in compressed_data]))
         else:
             if type(raw) == bytes:
