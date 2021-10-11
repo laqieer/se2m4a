@@ -15,7 +15,7 @@ for audio_file in sys.argv[1:]:
     for freq in magic_rates:
         audio_name, audio_ext = os.path.splitext(audio_file)
         audio_freq = audio_name + "-" + str(freq) + audio_ext
-        os.system("sox -G -v 0.92 " + audio_file + " -r " + str(freq) + " -b 8 -c 1 " + audio_freq)
+        os.system("sox -G -v 0.88 " + audio_file + " -r " + str(freq) + " -b 8 -c 1 " + audio_freq)
         if audio_ext in ('.wav', '.WAV'):
             audio_module = wave
         else:
@@ -39,6 +39,6 @@ plt.xticks(magic_rates)
 plt.xticks(rotation=-30)
 for audio, SNR in SNR_all.items():
     plt.plot(magic_rates, SNR, label = audio)
-plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+#plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 plt.tight_layout()
 plt.show()
