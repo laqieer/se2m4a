@@ -19,6 +19,48 @@ blk_size = 64
 quantized_table = [0, 1, 4, 9, 16, 25, 36, 49, -64, -49, -36, -25, -16, -9, -4, -1]
 quantized_array = [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12, 12, 12, 12, 13, 13, 13, 13, 13, 13, 14, 14, 14, 14, 15, 15, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]
 
+def dpcm_lookahead(min_error, buffer, lookahead, prev_level):
+    if lookahead == 0:
+        min_error["val"] = 0
+        min_error["id"] = 0
+        return
+    min_error["val"] = float('inf')
+    min_error["id"] = len(quantized_table)
+    for i, v in enumerate(quantized_table):
+        new_level = prev_level + v
+        estimated_error = (buffer[0] - new_level) ** 2
+        if estimated_error >= min_error["val"]:
+            continue
+        rec_min_error = {"val": 0, "id": 0}
+        dpcm_lookahead(rec_min_error, buffer[1:], lookahead - 1, new_level)
+        error = estimated_error + rec_min_error["val"]
+        if error < min_error["val"]:
+            if new_level <= 127 and new_level >= -128:
+                min_error["val"] = error
+                min_error["id"] = i
+
+def compress_blk_with_lookahead(uncompressed_data, lookahead):
+    s = uncompressed_data[0]
+    compressed_data = [s]
+    decompressed_data = [s]
+    i = 1
+    while i < blk_size:
+        min_error = {"val": 0, "id": 0}
+        compressed_byte = 0
+        if i > 1:
+            dpcm_lookahead(min_error, uncompressed_data[i:], min(lookahead, blk_size - i), s)
+            compressed_byte = (min_error["id"] & 0xF) << 4
+            s += quantized_table[min_error["id"]]
+            decompressed_data.append(s)
+            i += 1
+        dpcm_lookahead(min_error, uncompressed_data[i:], min(lookahead, blk_size - i), s)
+        compressed_byte |= min_error["id"] & 0xF
+        s += quantized_table[min_error["id"]]
+        decompressed_data.append(s)
+        i += 1
+        compressed_data.append(compressed_byte)
+    return compressed_data, decompressed_data
+
 def compress_blk(uncompressed_data):
     diff_value = [uncompressed_data[0]]
     compressed_data = [uncompressed_data[0]]
@@ -37,13 +79,16 @@ def compress_blk(uncompressed_data):
         #print("%d: %d %d %d %d" % (index, uncompressed_data[index], diff_value[index], quantized_value, compressed_data[-1]))
     return compressed_data, decompressed_data
 
-def compress(uncompressed_data):
+def compress(uncompressed_data, lookahead=0):
     #print("index: value delta quantized compressed")
     compressed_data = []
     decompressed_data = []
     blks = np.split(uncompressed_data, len(uncompressed_data) / blk_size)
     for blk in blks:
-        compressed_blk, decompressed_blk = compress_blk(blk)
+        if lookahead > 0:
+            compressed_blk, decompressed_blk = compress_blk_with_lookahead(blk, lookahead)
+        else:
+            compressed_blk, decompressed_blk = compress_blk(blk)
         compressed_data += compressed_blk
         decompressed_data += decompressed_blk
     return compressed_data, decompressed_data
@@ -52,9 +97,9 @@ def calculate_SNR(uncompressed_data, decompressed_data) :
     sum_son = np.int64(0)
     sum_mum = np.int64(0)
     for i in range(len(decompressed_data)) :
-        sum_son += int(decompressed_data[i] + 128) * int(decompressed_data[i] + 128)
+        sum_son += int(decompressed_data[i] + 128) ** 2
         sub = decompressed_data[i] - uncompressed_data[i]
-        sum_mum += sub * sub
+        sum_mum += sub ** 2
     return 10 * math.log10(float(sum_son) / float(sum_mum))
 
 def main():
@@ -62,6 +107,7 @@ def main():
     parser.add_argument("-i", "--input", help="Input sound sample file", metavar='xxx.wav/xxx.aif', required=True)
     parser.add_argument("-o", "--output", help="Output assembly source file", metavar='xxx.s')
     parser.add_argument("-c", "--compress", help="Enable DPCM compression", action="store_true")
+    parser.add_argument("-l", "--lookahead", help="Lookahead sample number for DPCM compression (only works with -c/--compress)", type=int, default=3)
     parser.add_argument("--limit-snr", help="SNR limit for DPCM compression (only works with -c/--compress)", type=float, default=0.0)
     parser.add_argument("--limit-compress-rate", help="Compression rate limit for DPCM compression (only works with -c/--compress)", type=float, default=1.0)
     args = parser.parse_args()
@@ -76,6 +122,7 @@ def main():
     else:
         audio_module = aifc
     enable_compress = args.compress
+    lookahead = args.lookahead
     min_SNR = args.limit_snr
     max_CR = args.limit_compress_rate
     with audio_module.open(input_file, 'rb') as audio, open(output_file, 'w') as asm:
@@ -102,7 +149,7 @@ def main():
                 uncompressed_data = np.frombuffer(raw, dtype = np.byte)
             if frames % blk_size > 0:
                 uncompressed_data = np.append(uncompressed_data, [0] * (blk_size - frames % blk_size))
-            compressed_data, decompressed_data = compress(uncompressed_data)
+            compressed_data, decompressed_data = compress(uncompressed_data, lookahead)
             SNR = calculate_SNR(uncompressed_data, decompressed_data)
             if SNR < min_SNR:
                 print("SNR: %.2fdB < %.1fdB, no compression!" % (SNR, min_SNR))
