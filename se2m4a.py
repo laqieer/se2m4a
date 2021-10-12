@@ -51,11 +51,13 @@ def compress_blk_with_lookahead(uncompressed_data, lookahead):
             dpcm_lookahead(min_error, uncompressed_data[i:], min(lookahead, blk_size - i), s)
             compressed_byte = (min_error["id"] & 0xF) << 4
             s += quantized_table[min_error["id"]]
+            s = max(-128, min(127, s))
             decompressed_data.append(s)
             i += 1
         dpcm_lookahead(min_error, uncompressed_data[i:], min(lookahead, blk_size - i), s)
         compressed_byte |= min_error["id"] & 0xF
         s += quantized_table[min_error["id"]]
+        s = max(-128, min(127, s))
         decompressed_data.append(s)
         i += 1
         compressed_data.append(compressed_byte)
