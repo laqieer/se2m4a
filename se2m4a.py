@@ -109,7 +109,7 @@ def main():
     parser.add_argument("-i", "--input", help="Input sound sample file", metavar='xxx.wav/xxx.aif', required=True)
     parser.add_argument("-o", "--output", help="Output assembly source file", metavar='xxx.s')
     parser.add_argument("-c", "--compress", help="Enable DPCM compression", action="store_true")
-    parser.add_argument("-l", "--lookahead", help="Lookahead sample number for DPCM compression (only works with -c/--compress)", type=int, default=3)
+    parser.add_argument("-l", "--lookahead", help="Lookahead sample number for DPCM compression (only works with -c/--compress)", type=int, default=0)
     parser.add_argument("--limit-snr", help="SNR limit for DPCM compression (only works with -c/--compress)", type=float, default=0.0)
     parser.add_argument("--limit-compress-rate", help="Compression rate limit for DPCM compression (only works with -c/--compress)", type=float, default=1.0)
     args = parser.parse_args()
