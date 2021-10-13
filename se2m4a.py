@@ -104,6 +104,12 @@ def calculate_SNR(uncompressed_data, decompressed_data) :
         sum_mum += sub ** 2
     return 10 * math.log10(float(sum_son) / float(sum_mum))
 
+def calculate_PSNR(uncompressed_data, decompressed_data) :
+    mse = np.mean((np.array(uncompressed_data)/1.0 - np.array(decompressed_data)/1.0) ** 2)
+    if mse < 1.0e-10:  # MSE is zero means no noise is present in the signal. Therefore PSNR has no importance.
+        return 100
+    return 20 * math.log10(255.0 / math.sqrt(mse))
+
 def main():
     parser = argparse.ArgumentParser('Convert sound sample to assembly source for GBA m4a engine.')
     parser.add_argument("-i", "--input", help="Input sound sample file", metavar='xxx.wav/xxx.aif', required=True)
@@ -111,6 +117,7 @@ def main():
     parser.add_argument("-c", "--compress", help="Enable DPCM compression", action="store_true")
     parser.add_argument("-l", "--lookahead", help="Lookahead sample number for DPCM compression (only works with -c/--compress)", type=int, default=0)
     parser.add_argument("--limit-snr", help="SNR limit for DPCM compression (only works with -c/--compress)", type=float, default=0.0)
+    parser.add_argument("--limit-psnr", help="PSNR limit for DPCM compression (only works with -c/--compress)", type=float, default=0.0)
     parser.add_argument("--limit-compress-rate", help="Compression rate limit for DPCM compression (only works with -c/--compress)", type=float, default=1.0)
     args = parser.parse_args()
     input_file = args.input
@@ -126,6 +133,7 @@ def main():
     enable_compress = args.compress
     lookahead = args.lookahead
     min_SNR = args.limit_snr
+    min_PSNR = args.limit_psnr
     max_CR = args.limit_compress_rate
     with audio_module.open(input_file, 'rb') as audio, open(output_file, 'w') as asm:
         if audio.getnchannels() > 1:
@@ -159,17 +167,24 @@ def main():
                 asm.write("\t.word " + str(rate * 1024) + ", 0, " + str(frames))
                 asm.write("\n\t.byte " + ', '.join(['%d' % b for b in uncompressed_data]))
             else:
-                CR = len(compressed_data) / float(frames)
-                if CR > max_CR:
-                    print("CR: %.3f > %.2f, no compression!" % (CR, max_CR))
+                PSNR = calculate_PSNR(uncompressed_data, decompressed_data)
+                if PSNR < min_PSNR:
+                    print("PSNR: %.2fdB < %.1fdB, no compression!" % (PSNR, min_PSNR))
                     asm.write("\t.hword 0, 0\n")
                     asm.write("\t.word " + str(rate * 1024) + ", 0, " + str(frames))
                     asm.write("\n\t.byte " + ', '.join(['%d' % b for b in uncompressed_data]))
                 else:
-                    asm.write("\t.hword 1, 0\n")
-                    asm.write("\t.word " + str(rate * 1024) + ", 0, " + str(frames))
-                    asm.write("\n\t// SNR: %.2fdB CR: %.3f" % (SNR, CR))
-                    asm.write("\n\t.byte " + ', '.join(['%d' % b for b in compressed_data]))
+                    CR = len(compressed_data) / float(frames)
+                    if CR > max_CR:
+                        print("CR: %.3f > %.2f, no compression!" % (CR, max_CR))
+                        asm.write("\t.hword 0, 0\n")
+                        asm.write("\t.word " + str(rate * 1024) + ", 0, " + str(frames))
+                        asm.write("\n\t.byte " + ', '.join(['%d' % b for b in uncompressed_data]))
+                    else:
+                        asm.write("\t.hword 1, 0\n")
+                        asm.write("\t.word " + str(rate * 1024) + ", 0, " + str(frames))
+                        asm.write("\n\t// SNR: %.2fdB PSNR: %.2fdB CR: %.3f" % (SNR, PSNR, CR))
+                        asm.write("\n\t.byte " + ', '.join(['%d' % b for b in compressed_data]))
         else:
             asm.write("\t.hword 0, 0\n")
             asm.write("\t.word " + str(rate * 1024) + ", 0, " + str(frames))
